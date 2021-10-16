@@ -4,8 +4,14 @@ using namespace std;
 
 const int N = 14000; 
 const int MinCT = 40, MaxBlk = 600, MaxDP = 720;
-const int NA = 207; 
+// const int NA = 207; 
 string preData[N];
+string preDataCrew[N];
+const string crewFileA = "»ú×éÅÅ°àData A-Crew.csv", crewFileB = "»ú×éÅÅ°àData B-Crew.csv";
+const string flightFileA = "»ú×éÅÅ°àData A-Flight.csv", flightFileB = "»ú×éÅÅ°àData B-Flight.csv";
+const int flightNumA = 207, flightNumB = 13955;
+const int crewNumA = 22, crewNumB = 466;	//	°üÀ¨±íÍ·µÄÒ»ĞĞ£¬Êµ¼ÊÊı¾İ´Ó 1 ¿ªÊ¼
+bool isDataA = 1;
 
 struct crewMember {
 	string empNo;
@@ -18,8 +24,8 @@ struct crewMember {
 	bool isUsed;
 	string endDate = "8/0/2021";
 	string endTime = "0:0";
+	int level;	//	1£¬ 2£¬ 3 ¼¶£¬´¿¸±»ú³¤´Ó3Ñ¡£¬Õı»ú³¤ÓÅÏÈÑ¡1
 
-	
 	void printInfo() {
 		//cout << this->EmpNo << ' ' << this->isUsed << " " << this->endTime << endl;
 	}
@@ -40,6 +46,34 @@ struct fightData{
 		cout << this->fltNum << ' ' << this->isUsed << " " << this->endTime << endl;
 	}
 }data[N + 5]; 
+
+bool CO_Cmp(const crewMember & a, const crewMember & b) {
+	if(a.isUsed != b.isUsed)
+		return a.isUsed == false? true : false;
+	return a.level < b.level;	//	ÓÅÏÈÈ¡ 1£¬2
+}
+
+bool FO_Cmp(const crewMember & a, const crewMember & b) {
+	if(a.isUsed != b.isUsed)
+		return a.isUsed == false? true : false;
+	return a.level > b.level;	//	ÓÅÏÈÈ¡ 3
+}
+
+crewMember * getCO() {	//	×¢Òâ£º·µ»ØµÄÊÇ¶ÔÏóµÄÖ¸Õë£¬getµ½ºó¿ÉÒÔÖ±½ÓĞŞ¸ÄµÄ
+	int crewNum = isDataA? crewNumA : crewNumB;
+	sort(memberData + 1, memberData + crewNum, CO_Cmp);
+	if(memberData[0].level == 3)	//	Èç¹ûÖ»Ê£ÏÂ´¿¸±»ú³¤£¬·µ»Ø null
+		return nullptr;
+	return &memberData[0];
+}
+
+crewMember * getFO() {
+	int crewNum = isDataA? crewNumA : crewNumB;
+	sort(memberData + 1, memberData + crewNum, FO_Cmp);
+	if(memberData[0].level != 3)	//	Èç¹û´¿¸±»ú³¤¶¼ÓÃ¹âÁË£¬·µ»Ø null
+		return nullptr;
+	return &memberData[0];
+}
 
 vector<string> split(string s, char c) {
 	vector<string> ans;
@@ -69,17 +103,12 @@ vector<int> getTime(string date, string time) {
 }
 
 bool lessThen(fightData & a, fightData & b) {	//	a < b ·µ»Ø true 
-	//cout << "1" << endl; 
 	string date1 = a.startDate, date2 = b.startDate;
 	string time1 = a.startTime, time2 = b.startTime;
 	vector<int> Time1 = getTime(date1, time1), Time2 = getTime(date2, time2);
 	int day1 = Time1[0], day2 = Time2[0];
 	int h1 = Time1[1], h2 = Time2[1];
 	int m1 = Time1[2], m2 = Time2[2];
-//	int day1 = atoi(split(date1, '/')[1].c_str()), day2 = atoi(split(date2, '/')[1].c_str());
-//	int h1 = atoi(split(time1, ':')[0].c_str()), h2 = atoi(split(time2, ':')[0].c_str());
-//	int m1 = atoi(split(time1, ':')[1].c_str()), m2 = atoi(split(time1, ':')[1].c_str());
-//	cout << day1 << " " << day2 << endl;
 	//cout << h1 << " " << m1 << endl;
 	if(day1 < day2) {
 		return true;
@@ -93,17 +122,10 @@ bool lessThen(fightData & a, fightData & b) {	//	a < b ·µ»Ø true
 		return false;
 }
 bool lessThen_end(string date1, string time1, string date2, string time2) {	//	a < b ·µ»Ø true 
-	//cout << "1" << endl; 
-//	string date1 = a.startDate, date2 = b.startDate;
-//	string time1 = a.startTime, time2 = b.startTime;
 	vector<int> Time1 = getTime(date1, time1), Time2 = getTime(date2, time2);
 	int day1 = Time1[0], day2 = Time2[0];
 	int h1 = Time1[1], h2 = Time2[1];
 	int m1 = Time1[2], m2 = Time2[2];
-//	int day1 = atoi(split(date1, '/')[1].c_str()), day2 = atoi(split(date2, '/')[1].c_str());
-//	int h1 = atoi(split(time1, ':')[0].c_str()), h2 = atoi(split(time2, ':')[0].c_str());
-//	int m1 = atoi(split(time1, ':')[1].c_str()), m2 = atoi(split(time1, ':')[1].c_str());
-//	cout << day1 << " " << day2 << endl;
 	//cout << h1 << " " << m1 << endl;
 	if(day1 < day2) {
 		return true;
@@ -152,7 +174,7 @@ int subtraction(fightData a, fightData b) {	//	Èôa > b£¬Ôò·µ»Ø a - b ÕıÖµ£¬·ñÔò·
 	}
 	string date1 = a.startDate, date2 = b.startDate;
 	string time1 = a.startTime, time2 = b.startTime;
-	cout << date1 << endl;
+	// cout << date1 << endl;
 	vector<int> Time1 = getTime(date1, time1), Time2 = getTime(date2, time2);
 	int day1 = Time1[0], day2 = Time2[0];
 	int h1 = Time1[1], h2 = Time2[1];
@@ -239,16 +261,16 @@ void calUniquePlace(){
 }
 
 void initMember() {
-	ifstream myfile("»ú×éÅÅ°àData A-Crew.csv");
+	ifstream myfile(isDataA? crewFileA : crewFileB);
     if( !myfile.is_open()){
     	cout << "Can not open" << endl;
 		return;
     }
-    string preDataCrew[N];
-	for(int i = 0; i < N; i++){
+	int crewNum = isDataA? crewNumA : crewNumB;
+	for(int i = 0; i < crewNum; i++){
 		myfile >> preDataCrew[i];
 	}
-	for(int i = 1; i <= 21; i++){
+	for(int i = 1; i < crewNum; i++){
 		vector<string> value = split(preDataCrew[i], ',');
 		memberData[i].empNo = value[0];
 		memberData[i].captain = value[1] == "Y" ? 1 : 0;
@@ -258,6 +280,12 @@ void initMember() {
 		memberData[i].dutyCostPerHour = atoi(value[5].c_str());
 		memberData[i].paringCostPerHour = atoi(value[6].c_str());
 		memberData[i].isUsed = false;
+		if(memberData[i].captain && memberData[i].firstOfficer)	//	³õÊ¼»¯»ú×éÈËÔ±µÄ level
+			memberData[i].level = 1;
+		else if(memberData[i].captain)
+			memberData[i].level = 2;
+		else
+			memberData[i].level = 3;
 		cout <<"i:" << i << " " <<memberData[i].empNo << " " << memberData[i].captain << endl; 
 	}
 	cout << "*******" << endl; 
@@ -268,16 +296,17 @@ void initMember() {
 void init(){
 	FILE *fp;
 	int i,j ;
-    ifstream myfile("»ú×éÅÅ°àData A-Flight.csv");
+    ifstream myfile(isDataA? flightFileA : flightFileB);
     if( !myfile.is_open()){
     	cout << "Can not open" << endl;
 		return;
     }
-	for(int i = 0; i < N; i++){
+	int flightNum = isDataA? flightNumA : flightNumB;
+	for(int i = 0; i < flightNum; i++){
 		myfile >> preData[i];
 	}
 	
-	for(int i = 1; i < N; i++){
+	for(int i = 1; i < flightNum; i++){
 		splitString(i);
 	}
 	calUniquePlace();
@@ -286,11 +315,12 @@ void init(){
 }
 
 void calFirst(){
+	int flightNum = isDataA? flightNumA : flightNumB;
 	int startTime = 11;
 	int canUsememberNum = 10; 
-	sort(data + 1, data + NA, lessThen);
+	sort(data + 1, data + flightNum, lessThen);
 	int lastUpdateNum = 0; 
-	for(int i = 1 ; i < NA; i++){
+	for(int i = 1 ; i < flightNum; i++){
 		if(atoi(split(data[i].startDate, '/')[1].c_str()) == startTime){
 			for(int j = 1; j <= 10; j++){
 				cout << "i = " << i << "ans: " << subtraction_end(data[i].startDate, data[i].startTime, memberData[j].endDate, memberData[j].endTime) << " " << memberData[i].base << endl;
@@ -306,7 +336,7 @@ void calFirst(){
 			}
 		}
 		cout << "i*"<< endl;
-		if(i == NA - 1){
+		if(i == flightNum - 1){
 			continue; 
 		}
 		if(atoi(split(data[i + 1].startDate, '/')[1].c_str()) == startTime + 1){
@@ -336,7 +366,7 @@ void calFirst(){
 		}
 	}
 	
-	for(int i = 1; i < NA; ++i) {
+	for(int i = 1; i < flightNum; ++i) {
 		cout <<"i = " << i << " "<< data[i].startDate << " " << data[i].startTime << " " << data[i].startPlace <<
 		" " <<  data[i].endDate << " " << data[i].endTime << " " << data[i].endPlace << " " <<  data[i].C << " " << data[i].F << " " << data[i].isUsed << endl; 
 	}
@@ -349,6 +379,10 @@ int main(){
 	init();
 	initMember();
 	calFirst();
+//	int crewNum = isDataA? crewNumA : crewNumB;
+//	sort(memberData + 1, memberData + crewNum, FO_Cmp);
+//	for(int j = 1; j < crewNum; ++j)
+//		cout << memberData[j].empNo << " " <<  memberData[j].level << " " << endl;
 	return 0;
 } 
 
