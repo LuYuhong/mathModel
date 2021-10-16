@@ -7,6 +7,7 @@ struct crewMember {
 	bool firstOfficer;
 	bool deadhead;
 	string base;
+	string nowBase;
 	int dutyCostPerHour;
 	int paringCostPerHour;
 	bool isUsed;

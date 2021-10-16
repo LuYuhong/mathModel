@@ -17,37 +17,55 @@ bool isDataA = 1;
 int sumMemberTakePlane;
 int couldUseMemberNum[1000];
 
+crewMember record[300][crewNumB];
 crewMember memberData[N + 5];
 
 fightData data[N + 5]; 
 
-bool CO_Cmp(const crewMember & a, const crewMember & b) {
+bool choose_Cmp(const crewMember & a, const crewMember & b) {
 	if(a.isUsed != b.isUsed)
 		return a.isUsed == false? true : false;
-	return a.level < b.level;	//	优先取 1，2
+	if(a.level < b.level)	//	优先取 1，2
+		return true;
+	else if(a.level == b.level) {
+		return !lessThen_end(a.endDate, a.endTime, b.endDate, b.endTime);	//	优先取结束时间更晚（离现在近）的，减少住酒店时间
+	} else
+		return false;
 }
 
-bool FO_Cmp(const crewMember & a, const crewMember & b) {
-	if(a.isUsed != b.isUsed)
-		return a.isUsed == false? true : false;
-	return a.level > b.level;	//	优先取 3
-}
+// bool FO_Cmp(const crewMember & a, const crewMember & b) {
+// 	if(a.isUsed != b.isUsed)
+// 		return a.isUsed == false? true : false;
+// 	if(a.level > b.level)	//	优先取 3
+// 		return true;
+// 	else if(a.level == b.level) {
+// 		return !lessThen_end(a.endDate, a.endTime, b.endDate, b.endTime);
+// 	} else
+// 		return false;
+// }
 
-crewMember * getCO(crewMember memberData[]) {	//	注意：返回的是对象的指针，get到后可以直接修改的
+pair<int, int> chooseCrew(crewMember memberData[]) {	//	排序飞行员，返回 {FO起始下标，CA起始下标}，找不到合法则为 -1
 	int crewNum = isDataA? crewNumA : crewNumB;
-	sort(memberData + 1, memberData + crewNum, CO_Cmp);
-	if(memberData[0].level == 3)	//	如果只剩下纯副机长，返回 null
-		return nullptr;
-	return &memberData[0];
+	sort(memberData + 1, memberData + crewNum, choose_Cmp);
+	int posCA = -1, posFO = -1;
+	for(int i = 1; i < crewNum; ++i) {
+		if(posFO == -1 && (memberData[i].level == 3 && !memberData[i].isUsed))
+			posFO = i;
+		if(posCA == -1 && (memberData[i].level != 3 && !memberData[i].isUsed))
+			posCA = i;
+		if(posCA > 0 && posFO > 0)
+			break;
+	}
+	return make_pair(posFO, posCA);
 }
 
-crewMember * getFO(crewMember memberData[]) {
-	int crewNum = isDataA? crewNumA : crewNumB;
-	sort(memberData + 1, memberData + crewNum, FO_Cmp);
-	if(memberData[0].level != 3)	//	如果纯副机长都用光了，返回 null
-		return nullptr;
-	return &memberData[0];
-}
+// bool preProcessFO(crewMember memberData[]) {
+// 	int crewNum = isDataA? crewNumA : crewNumB;
+// 	sort(memberData + 1, memberData + crewNum, FO_Cmp);
+// 	if(memberData[1].level != 3 || memberData[1].isUsed)	//	如果纯副机长都用光了,或不可用，返回 null
+// 		return false;
+// 	return true;
+// }
 
 
 void splitString(int x){
@@ -132,7 +150,7 @@ void initMember() {
 		memberData[i].captain = value[1] == "Y" ? 1 : 0;
 		memberData[i].firstOfficer = value[2] == "Y" ? 1 : 0;
 		memberData[i].deadhead = value[3] == "Y" ? 1 : 0;
-		memberData[i].base = value[4];
+		memberData[i].base = memberData[i].nowBase = value[4];
 		memberData[i].dutyCostPerHour = atoi(value[5].c_str());
 		memberData[i].paringCostPerHour = atoi(value[6].c_str());
 		memberData[i].isUsed = false;
@@ -181,10 +199,29 @@ void printProblemAns(){
 	//cout << "不满足机组配置航班数：" << canNotjustPlane << " 满足机组配置航班数：" << flightNumA - canNotjustPlane << " 机组人员总体乘机次数：" << sumMemberTakePlane * 2 << " 替补资格使用次数:0" << endl; 
 }
 
+inline void setMemberUsed(crewMember & member, fightData & flight, int & canUseMemberNum, int & couldUseMemberNum, int & sumMemberTakePlane) {
+	member.isUsed = true;
+	member.endTime = flight.endTime;
+	member.endDate = flight.endDate;
+	member.nowBase = flight.endPlace;
+	flight.isUsed = true;
+	canUseMemberNum--;
+	couldUseMemberNum = canUseMemberNum;
+	sumMemberTakePlane++;
+}
+
+void setRecord(int x){
+	int crewNum = isDataA? crewNumA : crewNumB;
+	for(int i = 1; i <= crewNum; i++){
+		record[x][i] = memberData[i];
+	}
+}
+
 void calFirst(){
 	int flightNum = isDataA? flightNumA : flightNumB;
+	int crewNum = isDataA? crewNumA : crewNumB;
 	int startTime = 11;
-	int canUseMemberNum = 10; 
+	int canUseMemberNum = 10;
 	sort(data + 1, data + flightNum, lessThen);
 	int lastUpdateNum = 0; 
 	int oneDayNumber = 0;
@@ -193,32 +230,59 @@ void calFirst(){
 		oneDayNumber++;
 		if(atoi(split(data[i].startDate, '/')[1].c_str()) == startTime){
 			bool temGiveMember = false;
-			for(int j = 1; j <= 10; j++){
-				//cout << "i = " << i << "ans: " << subtraction_end(data[i].startDate, data[i].startTime, memberData[j].endDate, memberData[j].endTime) << " " << memberData[i].base << endl;
-				if(memberData[j].isUsed == false && data[i].startPlace == memberData[j].base && (subtraction_end(data[i].startDate, data[i].startTime, memberData[j].endDate, memberData[j].endTime) >= 40)) {
-					memberData[j].isUsed = true;
-					memberData[j].endTime = data[i].endTime;
-					memberData[j].endDate = data[i].endDate; 
-					memberData[j].base = data[i].endPlace;
-					data[i].isUsed = true;
-					canUseMemberNum--;
-					couldUseMemberNum[i] = canUseMemberNum;
-					sumMemberTakePlane++;
-					temGiveMember = true;
-					//cout << "i2:"<< i << "base:" << memberData[j].base;
-					break;
+			int idxOfCA = -1, idxOfFO = -1;
+			pair<int, int> group = chooseCrew(memberData);
+			if(group.first < 0 || group.second < 0) {	//	假如现在就能判断当前航班凑不满人，就不能飞，跳过看下一班
+				// puts("不能飞");
+				continue;
+			} else {	//	有可能能凑满人，看看具体选谁
+				//	CA 和 FO 分别从刚刚找到的可能合法的下标处开始找
+				int findCA = false, findFO = false;
+				int posFO = group.first, posCA = group.second;
+				// for(; posFO < crewNum && posCA < group.first;) {
+				// 	//	当前飞行员没被用，在当前机场，休息时间够了
+				// 	if(memberData[posFO].isUsed == false && memberData[posFO].base == data[i].startPlace && subtraction_end(data[i].startDate, data[i].startTime, memberData[posFO].endDate, memberData[posFO].endTime) >= 40) {
+				// 		findFO = true;
+				// 	} else 
+				// 		++posFO;
+				// 	if(memberData[posCA].isUsed == false && memberData[posCA].base == data[i].startPlace && subtraction_end(data[i].startDate, data[i].startTime, memberData[posCA].endDate, memberData[posCA].endTime) >= 40) {
+				// 		findCA = true;
+				// 	} else 
+				// 		++posCA;
+				// 	if(findCA && findFO)
+				// 		break;
+				// }
+				while(posFO < crewNum) {
+					if(memberData[posFO].isUsed == false && memberData[posFO].nowBase == data[i].startPlace && subtraction_end(data[i].startDate, data[i].startTime, memberData[posFO].endDate, memberData[posFO].endTime) >= 40) {
+						findFO = true;
+						break;
+					}  
+					++posFO;
+				}
+				while(posCA < group.first) {
+					if(memberData[posCA].isUsed == false && memberData[posCA].nowBase == data[i].startPlace && subtraction_end(data[i].startDate, data[i].startTime, memberData[posCA].endDate, memberData[posCA].endTime) >= 40) {
+						findCA = true;
+						break;
+					} 
+					++posCA;
+				}
+				if(!findCA || !findFO) {	//	遍历后发现不能飞，跳过看下一班
+					puts("不能飞");
+					continue;
+				} else {	//	发现可以飞，那么更新飞行员和机场状态
+					setMemberUsed(memberData[posFO], data[i], canUseMemberNum, couldUseMemberNum[i], sumMemberTakePlane);	//	couldUseMemberNum 不太懂
+					setMemberUsed(memberData[posCA], data[i], canUseMemberNum, couldUseMemberNum[i], sumMemberTakePlane);
 				}
 			}
-			if(temGiveMember == false){
-				couldUseMemberNum[i] = couldUseMemberNum[i - 1];
-			}
+
 		}
-		//cout << "i*"<< endl;
 		if(i == flightNum - 1){
 			continue; 
 		}
-		if(atoi(split(data[i + 1].startDate, '/')[1].c_str()) == startTime + 1){
-			for(int j = 1; j <= 10; j++){
+		if(atoi(split(data[i + 1].startDate, '/')[1].c_str()) == startTime + 1){	//	当日航班结束，重置状态
+			for(int j = 1; j <= crewNum; j++){
+				// if(memberData[j].nowBase != memberData[j].base)
+				// 	memberData[j].haveNight = true;
 				if(memberData[j].haveNight == true){
 					continue;
 				}
@@ -228,17 +292,16 @@ void calFirst(){
 			}
 		}
 	
-		for(int j = 1; j <= 10; j++){
+		for(int j = 1; j < crewNum; j++){
 			if(memberData[j].isUsed == true){
-				//cout << "i5" << i << " " << lessThen_end(memberData[j].endDate, memberData[j].endTime, data[i].startDate, data[i].startTime) << endl;
 				//cout << memberData[j].endDate << " " <<  memberData[j].endTime << " " << data[i].startDate << " " << data[i].startTime << endl;
 				if(lessThen_end(memberData[j].endDate, memberData[j].endTime, data[i + 1].startDate, data[i + 1].startTime)){
 					memberData[j].isUsed = false;
-					canUseMemberNum++;
-					couldUseMemberNum[i] = canUseMemberNum;
 				}
 			}
 		}
+		setRecord(i);
+
 		if(atoi(split(data[i + 1].startDate, '/')[1].c_str()) == startTime + 1){
 			if(lastUpdateNum != 0){
 				//cout << "i:" << i << " " << "lastUpdateNum:" << lastUpdateNum << " lastOneDayNumber:" << lastOneDayNumber << endl;
@@ -253,50 +316,83 @@ void calFirst(){
 							if(data[j].startPlace == data[k].endPlace){ //如果可以过一天等待带人过去，接下判断下带人会不会导致当天人不够
 								bool couldHaveNight = true;
 								for(int z = k; z < j; z++){//这里要查询过去人员表使用情况
-									if(couldUseMemberNum[z] <= 0){
-										couldHaveNight = false;
-										cout << "k:" << k << " 当天第" << z << "天的人数不支持  " ;
-										cout << couldUseMemberNum[z] << endl;
+									sort(memberData + 1, memberData + crewNum, choose_Cmp);
+									// memberData[j-z+1];
+									pair<int, int> group = chooseCrew(memberData);
+									if(group.first < 0 || group.second < 0) {	//	假如现在就能判断当前航班凑不满人，就不能飞，跳过看下一班
+										continue;
+									} else {	//	有可能能凑满人，看看具体选谁
+										//	CA 和 FO 分别从刚刚找到的可能合法的下标处开始找
+										int findCA = false, findFO = false;
+										int posFO = group.first + j - z + 1, posCA = group.second + j - z + 1;
+										while(posFO < crewNum) {
+											if(memberData[posFO].isUsed == false && memberData[posFO].nowBase == data[i].startPlace && subtraction_end(data[i].startDate, data[i].startTime, memberData[posFO].endDate, memberData[posFO].endTime) >= 40) {
+												findFO = true;
+												break;
+											}  
+											++posFO;
+										}
+										while(posCA < group.first) {
+											if(memberData[posCA].isUsed == false && memberData[posCA].nowBase == data[i].startPlace && subtraction_end(data[i].startDate, data[i].startTime, memberData[posCA].endDate, memberData[posCA].endTime) >= 40) {
+												findCA = true;
+												break;
+											} 
+											++posCA;
+										}
+										if(!findCA || !findFO) {	//	遍历后发现不能飞，跳过看下一班
+											puts("不能飞");
+											continue;
+										} else {	//	发现可以飞，那么更新飞行员和机场状态
+											setMemberUsed(memberData[posFO], data[i], canUseMemberNum, couldUseMemberNum[i], sumMemberTakePlane);	//	couldUseMemberNum 不太懂
+											setMemberUsed(memberData[posCA], data[i], canUseMemberNum, couldUseMemberNum[i], sumMemberTakePlane);
+											data[j].isUsed = true;
+											sumMemberTakePlane += 2;
+										}
 									}
 								}
-								if(couldHaveNight == true){
-									for(int z = k; z < j; z++){
-										couldUseMemberNum[z]--;
-									}
-									cout << "当天第" << j  << "条没排"<< " ，通过第" << k << "条带人完成" << endl;
-									data[j].isUsed = true;
-									sumMemberTakePlane++;
-								}else{
-									cout << "当天第" << j  << "条没排"<< "并且当天不支持排" << endl;
-								}
-								
-								
 							}
 						}
 					}
 				}
-
 				//计算上一天是否要带人
 				for(int j = lastUpdateNum; j <= i; j++){
 					if(data[j].isUsed == false){ //如果存在没安排到的航班
 						for(int k = lastUpdateNum - 1; k >= lastUpdateNum - lastOneDayNumber; k--){
 							if(data[j].startPlace == data[k].endPlace){ //如果可以过一天等待带人过去，接下判断下带人会不会导致当天人不够
-								bool couldHaveNight = true;
-								for(int z = k; z < j; z++){//这里要查询过去人员表使用情况
-									if(couldUseMemberNum[z] <= 0){
-										couldHaveNight = false;
-										cout << "第" << z << "天的人数不支持" << endl;
+								sort(memberData + 1, memberData + crewNum, choose_Cmp);
+								pair<int, int> group = chooseCrew(memberData);
+								if(group.first < 0 || group.second < 0) {	//	假如现在就能判断当前航班凑不满人，就不能飞，跳过看下一班
+									continue;
+								} else {	//	有可能能凑满人，看看具体选谁
+									//	CA 和 FO 分别从刚刚找到的可能合法的下标处开始找
+									int findCA = false, findFO = false;
+									int posFO = group.first + j - k + 1, posCA = group.second + j - k + 1;
+									while(posFO < crewNum) {
+										if(memberData[posFO].isUsed == false && memberData[posFO].nowBase == data[i].startPlace && subtraction_end(data[i].startDate, data[i].startTime, memberData[posFO].endDate, memberData[posFO].endTime) >= 40) {
+											findFO = true;
+											break;
+										}  
+										++posFO;
+									}
+									while(posCA < group.first) {
+										if(memberData[posCA].isUsed == false && memberData[posCA].nowBase == data[i].startPlace && subtraction_end(data[i].startDate, data[i].startTime, memberData[posCA].endDate, memberData[posCA].endTime) >= 40) {
+											findCA = true;
+											break;
+										} 
+										++posCA;
+									}
+									if(!findCA || !findFO) {	//	遍历后发现不能飞，跳过看下一班
+										puts("不能飞");
+										continue;
+									} else {	//	发现可以飞，那么更新飞行员和机场状态
+										setMemberUsed(memberData[posFO], data[i], canUseMemberNum, couldUseMemberNum[i], sumMemberTakePlane);	//	couldUseMemberNum 不太懂
+										setMemberUsed(memberData[posCA], data[i], canUseMemberNum, couldUseMemberNum[i], sumMemberTakePlane);
+										data[j].isUsed = true;
+										sumMemberTakePlane += 2;
+
 									}
 								}
-								if(couldHaveNight == true){
-									for(int z = k; z < j; z++){
-										couldUseMemberNum[z]--;
-									}
-									cout << "第" << j  << "条没排"<< " ，通过第" << k << "条带人完成" << endl;
-									data[j].isUsed = true;
-									sumMemberTakePlane++;
-								}
-								
+									
 							}
 						}
 					}
@@ -324,10 +420,16 @@ int main(){
 	init();
 	initMember();
 	calFirst();
-//	int crewNum = isDataA? crewNumA : crewNumB;
-//	sort(memberData + 1, memberData + crewNum, FO_Cmp);
-//	for(int j = 1; j < crewNum; ++j)
-//		cout << memberData[j].empNo << " " <<  memberData[j].level << " " << endl;
+	// int crewNum = isDataA? crewNumA : crewNumB;
+	// sort(memberData + 1, memberData + crewNum, FO_Cmp);
+	// for(int j = 1; j < crewNum; ++j)
+	// 	cout << memberData[j].empNo << " " <<  memberData[j].level << " " << endl;
+	// crewMember * a = getCA(memberData);
+	// puts("------------");
+	// cout << a->empNo << " " <<  a->level << " " << endl;
+	// a = getFO(memberData);
+	// puts("------------");
+	// cout << a->empNo << " " <<  a->level << " " << endl;
 	return 0;
 } 
 
