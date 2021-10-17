@@ -15,7 +15,7 @@ struct crewMember {
 	string endTime = "0:0";
 	int level;	//	1， 2， 3 级，纯副机长从3选，正机长优先选1
 	bool haveNight;
-
+	int dutyMin;
 };
 
 struct fightData{
